@@ -1,0 +1,7 @@
+{
+  "name": "Lumière Virtual Stylist",
+  "description": "A high-end virtual styling assistant powered by Gemini. Features real-time trend analysis, localized shopping, and AI-powered virtual try-on.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
