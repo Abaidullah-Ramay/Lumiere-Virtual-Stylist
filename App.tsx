@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState, UserLocation, UserPhoto, Message, Product } from './types';
-import { Send, MapPin, Camera, Mic, Upload, User, ShoppingBag, Sparkles, AlertCircle } from 'lucide-react';
+import { Send, MapPin, Camera, Mic, Upload, User, ShoppingBag, Sparkles, AlertCircle, PhoneOff } from 'lucide-react';
 import { stylistService } from './services/geminiService';
 import VoiceMode from './components/VoiceMode';
 import { ProductCard } from './components/ProductCard';
@@ -19,6 +19,10 @@ function App() {
   const [isVoiceModeOpen, setIsVoiceModeOpen] = useState(false);
   const [chatSession, setChatSession] = useState<Chat | null>(null);
   
+  // Real-time voice transcripts
+  const [streamingUserText, setStreamingUserText] = useState('');
+  const [streamingModelText, setStreamingModelText] = useState('');
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,7 +38,6 @@ function App() {
         setChatSession(chat);
         
         // Initial Greeting
-        // Fixed: sendMessage expects an object { message: string }
         const result = await chat.sendMessage({ message: "Hello, I'm ready to start. Please introduce yourself briefly." });
         const text = result.text;
         setMessages([{ id: 'init', role: 'model', text }]);
@@ -50,7 +53,7 @@ function App() {
   // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, streamingUserText, streamingModelText]);
 
   // Handle Photo Upload
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,7 +84,6 @@ function App() {
     setIsLoading(true);
 
     try {
-      // Fixed: sendMessage expects an object { message: string }
       const result = await chatSession.sendMessage({ message: inputText });
       const text = result.text;
       
@@ -89,13 +91,9 @@ function App() {
       let recommendedProducts: Product[] | undefined = undefined;
 
       if (functionCalls && functionCalls.length > 0) {
-        // Find displayProducts
         const call = functionCalls.find(fc => fc.name === 'displayProducts');
         if (call) {
            recommendedProducts = (call.args as any).products;
-           
-           // We must send a tool response back to continue conversation context properly
-           // Use sendMessage with functionResponse part as submitFunctionResponse does not exist on Chat
            await chatSession.sendMessage({
              message: [{
                functionResponse: {
@@ -111,7 +109,7 @@ function App() {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        text: text, // The model usually summarizes what it found
+        text: text, 
         products: recommendedProducts
       }]);
 
@@ -131,7 +129,6 @@ function App() {
       return;
     }
 
-    // Add a system message indicating processing
     const processingMsgId = Date.now().toString();
     setMessages(prev => [...prev, {
       id: processingMsgId,
@@ -143,7 +140,6 @@ function App() {
     try {
       const generatedImage = await stylistService.generateTryOn(activePhoto.data, `${product.description} ${product.category || 'outfit'}`);
       
-      // Update the message with the image
       setMessages(prev => prev.map(m => {
         if (m.id === processingMsgId) {
           return {
@@ -188,7 +184,7 @@ function App() {
 
         <div className="max-w-md w-full bg-lux-dark border border-lux-gray p-8 rounded-2xl shadow-2xl z-10">
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-serif text-lux-gold mb-2">Lumière</h1>
+            <h1 className="text-4xl font-serif text-lux-gold mb-2">Lumiere</h1>
             <p className="text-gray-400 text-sm tracking-wide uppercase">Virtual Stylist • Global Trends</p>
           </div>
           
@@ -219,7 +215,7 @@ function App() {
               type="submit"
               className="w-full bg-white text-black font-bold py-3 rounded hover:bg-lux-gold hover:text-white transition-all duration-300"
             >
-              Enter Atelier
+              Enter
             </button>
           </form>
         </div>
@@ -297,14 +293,26 @@ function App() {
       <div className="flex-1 flex flex-col relative">
         {/* Header */}
         <div className="h-16 border-b border-lux-gray flex items-center justify-between px-6 bg-lux-dark/80 backdrop-blur z-10">
-          <h1 className="font-serif text-2xl tracking-tight text-white">Lumière <span className="text-lux-gold text-base italic">AI</span></h1>
-          <button 
-            onClick={() => setIsVoiceModeOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-lux-gray hover:bg-lux-gold hover:text-white transition-all text-sm font-medium"
-          >
-            <Mic size={16} />
-            Voice Mode
-          </button>
+          <h1 className="font-serif text-2xl tracking-tight text-white">Lumiere <span className="text-lux-gold text-base italic">AI</span></h1>
+          
+          {/* Voice Mode Toggle */}
+          {isVoiceModeOpen ? (
+            <button 
+              onClick={() => setIsVoiceModeOpen(false)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white border border-red-600/20 transition-all text-sm font-medium animate-pulse"
+            >
+              <PhoneOff size={16} />
+              End Voice Session
+            </button>
+          ) : (
+            <button 
+              onClick={() => setIsVoiceModeOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-lux-gray hover:bg-lux-gold hover:text-white transition-all text-sm font-medium"
+            >
+              <Mic size={16} />
+              Voice Mode
+            </button>
+          )}
         </div>
 
         {/* Messages */}
@@ -360,6 +368,35 @@ function App() {
               </div>
             </div>
           ))}
+
+          {/* Streaming User Message */}
+          {streamingUserText && (
+            <div className="flex justify-end">
+               <div className="bg-white/80 text-black px-6 py-3 rounded-2xl rounded-tr-sm max-w-lg shadow-lg backdrop-blur-sm">
+                 <p className="text-sm font-medium flex items-center gap-2">
+                    {streamingUserText}
+                    <span className="w-2 h-2 bg-lux-gold rounded-full animate-pulse"/>
+                 </p>
+               </div>
+            </div>
+          )}
+
+          {/* Streaming Model Message */}
+          {streamingModelText && (
+            <div className="flex justify-start">
+              <div className="max-w-3xl w-full flex gap-4">
+                 <div className="w-8 h-8 rounded-full bg-lux-gold/50 flex-shrink-0 flex items-center justify-center animate-pulse">
+                      <Sparkles size={16} className="text-black" />
+                  </div>
+                  <div className="bg-lux-gray/50 px-6 py-3 rounded-2xl rounded-tl-sm shadow-lg backdrop-blur-sm">
+                     <p className="text-sm text-gray-300 flex items-center gap-2">
+                        {streamingModelText}
+                     </p>
+                  </div>
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -372,30 +409,52 @@ function App() {
               onChange={e => setInputText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
               placeholder="Ask about trends, prices, or styling advice..."
-              disabled={isLoading}
-              className="w-full bg-black border border-lux-gray text-white pl-6 pr-14 py-4 rounded-full focus:border-lux-gold focus:ring-1 focus:ring-lux-gold focus:outline-none transition-all shadow-inner"
+              disabled={isLoading || isVoiceModeOpen}
+              className="w-full bg-black border border-lux-gray text-white pl-6 pr-14 py-4 rounded-full focus:border-lux-gold focus:ring-1 focus:ring-lux-gold focus:outline-none transition-all shadow-inner disabled:opacity-50"
             />
             <button 
               onClick={handleSendMessage}
-              disabled={!inputText.trim() || isLoading}
+              disabled={!inputText.trim() || isLoading || isVoiceModeOpen}
               className="absolute right-2 top-2 p-2 bg-lux-gold rounded-full text-black hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-default"
             >
               {isLoading ? <Sparkles className="animate-spin w-5 h-5" /> : <Send className="w-5 h-5 ml-0.5" />}
             </button>
           </div>
           <p className="text-center text-xs text-gray-600 mt-2">
-            Lumière uses Gemini 2.5 models. Upload a photo for try-on features.
+            Lumiere uses Gemini 2.5 models. Upload a photo for try-on features.
           </p>
         </div>
       </div>
 
-      {/* Voice Mode Overlay */}
-      <VoiceMode 
-        isOpen={isVoiceModeOpen} 
-        onClose={() => setIsVoiceModeOpen(false)} 
-        location={location}
-        onProductsFound={handleVoiceProducts}
-      />
+      {/* Headless Voice Controller */}
+      {isVoiceModeOpen && (
+        <VoiceMode 
+            isOpen={isVoiceModeOpen} 
+            onClose={() => setIsVoiceModeOpen(false)} 
+            location={location}
+            onProductsFound={handleVoiceProducts}
+            onUserTranscript={(text, isFinal) => {
+                if (isFinal) {
+                    if (text.trim()) {
+                        setMessages(prev => [...prev, {id: Date.now().toString(), role: 'user', text}]);
+                    }
+                    setStreamingUserText('');
+                } else {
+                    setStreamingUserText(text);
+                }
+            }}
+            onModelTranscript={(text, isFinal) => {
+                if (isFinal) {
+                    if (text.trim()) {
+                        setMessages(prev => [...prev, {id: Date.now().toString(), role: 'model', text}]);
+                    }
+                    setStreamingModelText('');
+                } else {
+                    setStreamingModelText(text);
+                }
+            }}
+        />
+      )}
     </div>
   );
 }

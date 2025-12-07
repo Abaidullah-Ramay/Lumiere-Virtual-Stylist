@@ -56,7 +56,7 @@ class StylistService {
 
   async createChat(location: UserLocation, history: Content[] = []) {
     const systemInstructionText = `
-      You are Lumière, a high-end virtual stylist assistant.
+      You are Lumiere, a high-end virtual stylist assistant.
       The user is currently in ${location.city}, ${location.country}.
       
       Your goal is to:
